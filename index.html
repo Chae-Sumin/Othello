@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Othello</title>
+</head>
+<body>
+	<div class="game_wrap">
+		<!-- 게임 보드 -->
+		<div id="othello"></div>
+		<!-- 게임 콘솔 -->
+		<div class="console">
+			<!-- 텍스트 안내 -->
+			<div class="console_text" id="console"></div>
+			<!-- 턴 표시 -->
+			<div class="turn">
+				<span>TURN:&emsp;</span><span id="setturn" class="coin"></span>
+			</div>
+			<!-- 돌 갯수 표시 -->
+			<div class="count_wrap">
+				<div class="count">Count</div>
+				<div class="turn">
+					<div class="coin"></div><div>&nbsp;:&emsp;<span id="black">2</span></div>
+				</div>
+				<div class="turn">
+					<div class="coin reverse"></div><div>&nbsp;:&emsp;<span id="white">2</span></div>
+				</div>
+			</div>
+			<!-- 초기화 버튼 -->
+			<button id="reset">reset</button>
+			<!-- 패스 버튼 -->
+			<button id="pass">pass</button>
+			<!-- 종료 버튼 -->
+			<button id="end">end</button>
+			<!-- 추천 표시 버튼 -->
+			<button id="recommend">recommend</button>
+			<form>
+				<!-- 게임 모드 설정 -->
+				<div class="mode_wrap">
+					<div>
+						<input type="radio" name="mode" id="mode1" value="1" checked>
+						<label for="mode1">1P vs 2P</label>
+					</div>
+					<div>
+						<input type="radio" name="mode" id="mode2" value="2">
+						<label for="mode2">1P vs AI</label>
+					</div>
+					<div>
+						<input type="radio" name="mode" id="mode3" value="3">
+						<label for="mode3">AI vs AI</label>
+					</div>
+				</div>
+				<!-- AI 난이도 설정 -->
+				<div class="level_wrap">
+					<div>
+						<input type="radio" name="level" id="level1" value="1" checked>
+						<label for="level1">level 1</label>
+					</div>
+					<div>
+						<input type="radio" name="level" id="level2" value="2">
+						<label for="level2">level 2</label>
+					</div>
+					<div>
+						<input type="radio" name="level" id="level3" value="3">
+						<label for="level3">level 3</label>
+					</div>
+					<div>
+						<input type="radio" name="level" id="level4" value="4">
+						<label for="level4">level 4</label>
+					</div>
+					<div>
+						<input type="radio" name="level" id="level5" value="5">
+						<label for="level5">level 5</label>
+					</div>
+
+				</div>
+			</form>
+		</div>
+	</div>
+	<ul class="game_rule">
+		<li>상대 돌을 자신의 돌로 감싸면 뒤집을 수 있습니다.</li>
+		<li>상대 돌을 감싸 뒤집을 수 있는곳에만 둘 수 있습니다.</li>
+		<li>만약 상대 돌을 뒤집을 수 있는 위치가 없다면 패스할 수 있습니다.</li>
+		<li>둘 다 둘 곳이 없어 연속으로 패스를 하면 게임은 종료됩니다.</li>
+		<li>게임 당 패스는 두번까지만 가능하고 세번째 패스와 동시에 게임은 종료됩니다.</li>
+		<li>보드를 모두 채우면 게임이 끝납니다.</li>
+		<li>게임 종료 후 더 많은 돌을 가지고 있는 사람이 승리합니다.</li>
+	</ul>
+	<style>
+		* {
+			box-sizing: border-box;
+		}
+		body {
+			padding: 20px;
+			background-color: #ddd;
+		}
+		.game_wrap {
+			display: grid;
+			grid-template-columns: 640px 1fr;
+			gap: 20px;
+			width: 910px;
+			margin: 0 auto 20px;
+		}
+		.game_rule {
+			display: grid;
+			grid-template-columns: 1fr;
+			gap: 8px;
+			width: 910px;
+			margin: 0 auto;
+			padding: 20px 30px;
+			border: 1px solid #000;
+			border-radius: 10px;
+			background-color: #fff;
+			font-size: 12px;
+		}
+
+		/* 보드 */
+		#othello {
+			position: relative;
+			display: grid;
+			grid-template-columns: repeat(8, 1fr);
+			grid-template-rows: repeat(8, 1fr);
+			width: 640px;
+			height: 640px;
+			/* 커스텀 커서 예정 */
+			cursor: none;
+		}
+		.cell {
+			position: relative;
+			box-sizing: border-box;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			width: 80px;
+			height: 80px;
+			background-color: beige;
+			-webkit-perspective: 1000px;
+			perspective: 1000px;
+		}
+		.cell.darker {
+			background-color: burlywood;
+		}
+		/* 커서 표시 */
+		.cell:hover {
+			border: 4px solid brown;
+		}
+		/* 추천 칸 표시 */
+		.cell.recommend::after {
+			content: '';
+			position: absolute;
+			left: 0;
+			right: 0;
+			top: 0;
+			bottom: 0;
+			background-color: rgba(0, 0, 0, 0.5);
+		}
+
+		/* 돌 */
+		.coin {
+			position: relative;
+			width: 50px;
+			height: 50px;
+			border-radius: 25px;
+			-webkit-transform-style: preserve-3d;
+			transform-style: preserve-3d;
+			transition: transform 1s ease;
+			transform: rotateY(0) rotateZ(0);
+			/* 마우스 이벤트 방지 */
+			pointer-events: none;
+		}
+		.coin::after,
+		.coin::before {
+			box-sizing: border-box;
+			content: '';
+			position: absolute;
+			left: 0;
+			top: 0;
+			display: block;
+			width: 100%;
+			height: 100%;
+			border-radius: 50%;
+			-webkit-backface-visibility: hidden;
+			backface-visibility: hidden;
+		}
+		/* 앞면(흑) */
+		.coin::after {
+			background-color: #454545;
+		}
+		/* 뒷면(백) */
+		.coin::before {
+			background-color: #fefefe;
+			transform: rotateY(180deg);
+		}
+		/* 마지막 돌 */
+		.coin.curr::after,
+		.coin.curr::before {
+			border: 2px solid red;
+		}
+		/* 숨기기 */
+		.coin.none {
+			display: none;
+		}
+		/* 뒷면 노출 */
+		.coin.reverse {
+			transform: rotateY(180deg) rotateZ(45deg);
+		}
+		/* 마우스커서는 반 사이즈 */
+		.mouse {
+			position: absolute;
+			width: 25px !important;
+			height: 25px !important;
+		}
+
+		/* 콘솔 */
+		.console_text {
+			height: 80px;
+			padding: 10px;
+			border: 2px solid #000;
+			border-radius: 4px;
+			background-color: #fff;
+			line-height: 20px;
+			font-size: 16px;
+			color: #222;
+			margin-bottom: 20px;
+		}
+		/* 턴 표시 */
+		.turn {
+			display: flex;
+			align-items: center;
+			margin-bottom: 20px;
+			font-weight: bold;
+			font-size: 24px;
+		}
+		/* 점수 표시 */
+		.count_wrap {
+			margin-bottom: 20px;
+		}
+		.count {
+			font-weight: bold;
+			font-size: 24px;
+			margin-bottom: 10px;
+		}
+		/* 버튼 디자인 */
+		.console > button {
+			margin: 8px 4px 0;
+			padding: 10px 12px;
+			font-size: 18px;
+			font-weight: bold;
+			border: none;
+			border-radius: 5px;
+			background-color: #454545;
+			color: #fefefe;
+			cursor: pointer;
+		}
+		/* 모드 / 난이도 표시 */
+		.mode_wrap,
+		.level_wrap {
+			margin-top: 20px;
+		}
+	</style>
+	<script>
+		function game() {
+			// 오델로 HTML 객체
+			const othello = document.querySelector('#othello');
+			// 메인 보드
+			let board = new Array(8).fill(0).map(() => new Array(8).fill(0));
+			// 1: 흑돌, -1: 백돌
+			let turn = 1;
+			// 게임 종료 여부
+			let isEnd = true;
+			// 직전 패스 여부
+			let isPass = false;
+			// 패스 횟수
+			let passCount = 0;
+			// setTimeout timer
+			let AITimer = null;
+			// 추천 사용 횟수
+			let recommendCount = {
+				'1': 0,
+				'-1': 0,
+			};
+			// 패스 버튼
+			const pass = document.querySelector('#pass');
+			// 게임 종료 버튼
+			const end = document.querySelector('#end');
+			// 게임 초기화 버튼
+			const reset = document.querySelector('#reset');
+			// 추천 버튼
+			const recommend = document.querySelector('#recommend');
+			// 모드 버튼 (player vs AI)
+			const mode2 = document.querySelector('#mode2');
+			// 모드 버튼 (AI vs AI)
+			const mode3 = document.querySelector('#mode3');
+
+			// 이벤트 리스너
+			reset.addEventListener('click', () => {
+				if (!isEnd) return setConsole('게임이 끝나지 않았습니다.');
+				resetFn();
+			});
+			pass.addEventListener('click', passFn);
+			end.addEventListener('click', endGame);
+			recommend.addEventListener('click', () => {
+				if (isEnd) return setConsole('게임이 종료되었습니다. 새로 시작하려면 reset 버튼을 눌러주세요.');
+
+				const beforeRecommendPos = document.querySelector('.recommend');
+				if (beforeRecommendPos) return setConsole('이미 추천된 위치가 있습니다.');
+
+				const recommendPos = getRecommendPos(turn);
+				if (recommendPos.length === 0) {
+					setConsole('돌을 놓을 수 있는 칸이 존재하지 않습니다. 2초 뒤 턴을 패스합니다.');
+					setTimeout(passFn, 2000);
+					return;
+				}
+				const maxRecommends = recommendPos.recommend.filter((el) => el.count === recommendPos.max);
+				setRecommendPos(maxRecommends);
+			});
+			mode2.addEventListener('click', () => {
+				if (isEnd) return setConsole('게임이 종료되었습니다. 새로 시작하려면 reset 버튼을 눌러주세요.');
+				if (turn == -1) {
+					clearTimeout(AITimer);
+					AITimer = setTimeout(setAI, 1000);
+				}
+			});
+			mode3.addEventListener('click', () => {
+				if (isEnd) return setConsole('게임이 종료되었습니다. 새로 시작하려면 reset 버튼을 눌러주세요.');
+				clearTimeout(AITimer);
+				AITimer = setTimeout(setAI, 1000);
+			});
+			if (document.forms[0].mode.value === '3') {
+				clearTimeout(AITimer);
+				AITimer = setTimeout(setAI, 1000);
+			}
+			othello.addEventListener('click', (e) => {
+				const mode = document.forms[0].mode.value;
+				if (isEnd) return;
+				if (mode === '3') return setConsole('AI 대결 모드에서는 플레이어가 돌을 놓을 수 없습니다.');
+				if (mode === '2' && turn === -1) return setConsole('AI의 턴입니다. 잠시만 기다려주세요.');
+				if (e.target.classList.contains('cell')) {
+					const x = Number(e.target.dataset.x);
+					const y = Number(e.target.dataset.y);
+					const res = setPos(x, y, turn);
+					if (res) {
+						isPass = false;
+						setConsole('');
+						setRecommendPos();
+						getNextTurn();
+					}
+				}
+			});
+
+			// 메소드
+			// 보드 돔 생성
+			function mkBoardDOM() {
+				// 기존 돔 제거
+				if (othello.children.length) othello.innerHTML = '';
+				// 돔 생성
+				for (let i = 0; i < 64; i++) {
+					const x = i % 8;
+					const y = Math.floor(i / 8);
+					const cell = document.createElement('div');
+					const coin = document.createElement('div');
+					cell.dataset.x = x;
+					cell.dataset.y = y;
+					cell.classList.add('cell');
+					coin.classList.add('coin');
+					coin.classList.add('none');
+					if (x % 2 && !(y % 2) || !(x % 2) && y % 2) {
+						cell.classList.add('darker');
+					}
+					cell.appendChild(coin);
+					othello.appendChild(cell);
+				}
+				// 마우스 커서
+				const mouse = document.createElement('div');
+				mouse.classList.add('mouse');
+				mouse.classList.add('coin');
+				othello.addEventListener('mousemove', (e) => {
+					mouse.style.left = (Number(e.clientX - othello.offsetLeft) - 12.5) + 'px';
+					mouse.style.top = (Number(e.clientY - othello.offsetTop) - 12.5) + 'px';
+				});
+				othello.appendChild(mouse);
+			}
+			// 리셋
+			function resetFn() {
+				// 파라미터 초기화
+				turn = 1;
+				isEnd = false;
+				isPass = false;
+				document.forms[0].mode.value = '1';
+				document.forms[0].mode.level = '1';
+				passCount = 0;
+				recommendCount = {
+					'1': 0,
+					'-1': 0,
+				};
+				clearTimeout(AITimer);
+
+				// 콘솔 초기화
+				setConsole('');
+				// 보드 초기화
+				board = new Array(8).fill(0).map(() => new Array(8).fill(0));
+				board[3][3] = 1;
+				board[3][4] = -1;
+				board[4][3] = -1;
+				board[4][4] = 1;
+				// 돔 초기화
+				for (let i = 0; i < 64; i++) {
+					const x = i % 8;
+					const y = Math.floor(i / 8);
+					const coin = document.querySelector(`.cell[data-x="${x}"][data-y="${y}"] .coin`);
+					switch (board[y][x]) {
+						case 0:
+							coin.classList.add('none');
+							coin.classList.remove('reverse');
+							break;
+						case -1:
+							coin.classList.remove('none');
+							coin.classList.add('reverse');
+							break;
+						default:
+							coin.classList.remove('none');
+							coin.classList.remove('reverse');
+							break;
+					}
+				}
+			}
+
+			// 돌 놓기
+			/**
+			 * @param {number} x - x좌표
+			 * @param {number} y - y좌표
+			 * @param {number} turn - 턴
+			 * @param {Array} [forReverse] - 뒤집을 돌
+			 * @returns {boolean} - 놓을 수 없는 곳이면 false, 놓을 수 있으면 true
+			 */
+			function setPos(x, y, turn, forReverse) {
+				// 놓을 수 없는 곳이면 1을 반환
+				if (board[y][x] !== 0 || !turn) return false;
+
+				// 뒤집을 돌이 있는지 확인
+				if (!forReverse) {
+					forReverse = checkReverse(x, y, turn);
+				}
+				// 뒤집을 돌이 없으면 1을 반환
+				if (forReverse.length == 0) {
+					setConsole(`${turn > 0 ? '흑돌' : '백돌'}을 그곳에 놓을 수 없습니다.`);
+					return false;
+				}
+				// 마지막 수 초기화
+				const curr = document.querySelector('.curr');
+				if (curr) curr.classList.remove('curr');
+				// 돌 놓기
+				const cell = document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
+				const coin = cell.querySelector('.coin');
+				coin.classList.remove('none');
+				coin.classList.add('curr');
+				if (turn === -1) {
+					coin.classList.add('reverse');
+				}
+				// 보드 배열 수정
+				board[y][x] = turn;
+				// 뒤집기
+				forReverse.forEach(reverse);
+				return true;
+			}
+			// 돌 놓기
+			/**
+			 * @param {number} x - x좌표
+			 * @param {number} y - y좌표
+			 * @param {number} turn - 턴
+			 * @param {Array} board - 보드 배열
+			 * @param {Array} [forReverse] - 뒤집을 돌
+			 * @returns {Array} - 변경된 보드 배열
+			 */
+			function setSudoPos(x, y, turn, board, forReverse) {
+				if (!board) return {res: false, board};
+				// 놓을 수 없는 곳이면 1을 반환
+				if (board[y][x] !== 0 || !turn) return {res: false, board};
+				board = JSON.parse(JSON.stringify(board));
+
+				if (!forReverse) {
+					forReverse = checkReverse(x, y, turn, board);
+				}
+				// 뒤집을 돌이 없으면 1을 반환
+				if (forReverse.length == 0) {
+					return {res: false, board};
+				}
+				// 보드 배열 수정
+				board[y][x] = turn;
+				// 뒤집기
+				forReverse.forEach(({x, y, turn}) => {board[y][x] = turn;});
+				return {res: true, board};
+			}
+			// 뒤집을 수 있는 돌 체크
+			/**
+			 * @param {number} x - x좌표
+			 * @param {number} y - y좌표
+			 * @param {number} turn - 턴
+			 * @param {Array} [b] - 보드 배열
+			 * @return {Array} 뒤집을 돌
+			 */
+			function checkReverse(x, y, turn, b) {
+				if (!b) b = board;
+				const forReverse = [];
+				// check left
+				if (x > 1) {
+					if (board[y][x - 1] === -turn) {
+						for (let i = x - 2; i >= 0; i--) {
+							if (b[y][i] === 0) break;
+							if (b[y][i] === turn) {
+								for (let j = x - 1; j > i; j--) {
+									forReverse.push({x: j, y, turn});
+								}
+								break;
+							}
+						}
+					}
+				}
+				// check right
+				if (x < 6) {
+					if (b[y][x + 1] === -turn) {
+						for (let i = x + 2; i < 8; i++) {
+							if (b[y][i] === 0) break;
+							if (b[y][i] === turn) {
+								for (let j = x + 1; j < i; j++) {
+									forReverse.push({x: j, y, turn});
+								}
+								break;
+							}
+						}
+					}
+				}
+				// check top
+				if (y > 1) {
+					if (b[y - 1][x] === -turn) {
+						for (let i = y - 2; i >= 0; i--) {
+							if (b[i][x] === 0) break;
+							if (b[i][x] === turn) {
+								for (let j = y - 1; j > i; j--) {
+									forReverse.push({x, y: j, turn});
+								}
+								break;
+							}
+						}
+					}
+				}
+				// check bottom
+				if (y < 6) {
+					if (b[y + 1][x] === -turn) {
+						for (let i = y + 2; i < 8; i++) {
+							if (b[i][x] === 0) break;
+							if (b[i][x] === turn) {
+								for (let j = y + 1; j < i; j++) {
+									forReverse.push({x, y: j, turn});
+								}
+								break;
+							}
+						}
+					}
+				}
+				// check top left
+				if (x > 1 && y > 1) {
+					if (b[y - 1][x - 1] === -turn) {
+						for (let i = 2; i < 8; i++) {
+							if (x - i < 0 || y - i < 0) break;
+							if (b[y - i][x - i] === 0) break;
+							if (b[y - i][x - i] === turn) {
+								for (let j = 1; j < i; j++) {
+									forReverse.push({x: x - j, y: y - j, turn});
+								}
+								break;
+							}
+						}
+					}
+				}
+				// check top right
+				if (x < 6 && y > 1) {
+					if (b[y - 1][x + 1] === -turn) {
+						for (let i = 2; i < 8; i++) {
+							if (x + i > 7 || y - i < 0) break;
+							if (b[y - i][x + i] === 0) break;
+							if (b[y - i][x + i] === turn) {
+								for (let j = 1; j < i; j++) {
+									forReverse.push({x: x + j, y: y - j, turn});
+								}
+								break;
+							}
+						}
+					}
+				}
+				// check bottom left
+				if (x > 1 && y < 6) {
+					if (b[y + 1][x - 1] === -turn) {
+						for (let i = 2; i < 8; i++) {
+							if (x - i < 0 || y + i > 7) break;
+							if (b[y + i][x - i] === 0) break;
+							if (b[y + i][x - i] === turn) {
+								for (let j = 1; j < i; j++) {
+									forReverse.push({x: x - j, y: y + j, turn});
+								}
+								break;
+							}
+						}
+					}
+				}
+				// check bottom right
+				if (x < 6 && y < 6) {
+					if (b[y + 1][x + 1] === -turn) {
+						for (let i = 2; i < 8; i++) {
+							if (x + i > 7 || y + i > 7) break;
+							if (b[y + i][x + i] === 0) break;
+							if (b[y + i][x + i] === turn) {
+								for (let j = 1; j < i; j++) {
+									forReverse.push({x: x + j, y: y + j, turn});
+								}
+								break;
+							}
+						}
+					}
+				}
+				return forReverse;
+			}
+			/**
+			 * 돌 뒤집기
+			 * @param {object} param - {x, y, turn}
+			 * @param {number} param.x - x 좌표
+			 * @param {number} param.y - y 좌표
+			 * @param {number} param.turn - 1 or -1
+			 * @return {void}
+			 */
+			function reverse({x, y, turn}) {
+				const cell = document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
+				const coin = cell.querySelector('.coin');
+				const cmd = turn === 1 ? 'remove' : 'add';
+				coin.classList[cmd]('reverse');
+				board[y][x] = turn;
+			}
+			/**
+			 * 패스 가능 여부 확인
+			 * @param {number} turn - 1 or -1
+			 * @return {boolean} - 패스 가능 여부
+			 */
+			function checkPass(turn) {
+				for (let y = 0; y < 8; y++) {
+					for (let x = 0; x < 8; x++) {
+						if (board[y][x] == 0) {
+							if (checkReverse(x, y, turn).length > 0) return false;
+						}
+					}
+				}
+				return true;
+			}
+			// 텍스트 콘솔 내용 변경
+			function setConsole(str) {
+				const console = document.querySelector('#console');
+				console.textContent = str;
+			}
+			/**
+			 * 콘솔 UI 변경
+			 * @param {number} turn - 1 or -1
+			 * @return {boolean} - 게임 종료 여부
+			 */
+			function setCousoleUI(turn) {
+				const mouse = document.querySelector('.mouse');
+				const setturn = document.querySelector('#setturn');
+				const cmd = turn === 1 ? 'remove' : 'add';
+				mouse.classList[cmd]('reverse');
+				setturn.classList[cmd]('reverse');
+				const blackCount = document.querySelector('#black');
+				const whiteCount = document.querySelector('#white');
+				const {black, white} = getCount();
+				blackCount.textContent = black;
+				whiteCount.textContent = white;
+				return (black + white == 64);
+			}
+			/**
+			 * 돌 개수 세기
+			 * @param {Array} [b] - 보드
+			 * @return {Object} - {black, white}
+			 */
+			function getCount(b) {
+				if (!b) b = board;
+				let black = 0;
+				let white = 0;
+				for (let y = 0; y < 8; y++) {
+					for (let x = 0; x < 8; x++) {
+						if (b[y][x] === 1) black++;
+						if (b[y][x] === -1) white++;
+					}
+				}
+				return {black, white};
+			}
+			/**
+			 * 놓을 수 있는 돌 위치 가져오기
+			 * @param {number} turn - 1 or -1
+			 * @param {Array} [b] - 보드
+			 * @param {boolean} [only_max] - 가장 많은 돌을 뒤집을 수 있는 위치만 가져올지 여부
+			 * @return {Object} - {recommend, max}
+			 * recommend: 놓을 수 있는 돌 위치 배열
+			 * max: 놓을 수 있는 돌 위치 중 가장 많은 돌을 뒤집을 수 있는 위치의 개수
+			 */
+			function getRecommendPos(turn, b, only_max) {
+				const recommend = [];
+				let max = 0;
+				for (let y = 0; y < 8; y++) {
+					for (let x = 0; x < 8; x++) {
+						if (board[y][x] == 0) {
+							const reverses = checkReverse(x, y, turn, b);
+							if (reverses.length > 0 && (!only_max || reverses.length > max)) recommend.push({x, y, reverses, count: reverses.length});
+							if (reverses.length > max) max = reverses.length;
+						}
+					}
+				}
+				return {recommend, max};
+			}
+			/**
+			 * 놓을 수 있는 돌 위치 표시
+			 * @param {Array} [arr] - 놓을 수 있는 돌 위치 배열
+			 * @return {void}
+			 */
+			function setRecommendPos(arr) {
+				const beforeRecommend = document.querySelectorAll('.recommend');
+				beforeRecommend.forEach((el) => el.classList.remove('recommend'));
+				if (!arr) return;
+				recommendCount[turn]++;
+				arr.forEach(({x,y}) => {
+					const cell = document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
+					cell.classList.add('recommend');
+				});
+			}
+
+			// 턴 넘김
+			function getNextTurn(ms) {
+				if (!ms) ms = 1000;
+				const mode = document.forms[0].mode.value;
+				turn *= -1;
+				isPass = false;
+				setRecommendPos();
+				const checkEnd = setCousoleUI(turn);
+				if (checkEnd) {
+					clearTimeout(AITimer);
+					AITimer = setTimeout(endGame, ms);
+					return;
+				}
+				clearTimeout(AITimer);
+				if (mode == 3 || (turn == -1 && mode == 2)) {
+					AITimer = setTimeout(setAI, ms);
+				}
+			}
+
+			// 패스함수
+			function passFn() {
+				// 게임 종료 여부 확인
+				if (isEnd) return setConsole('게임이 종료되었습니다. 새로 시작하려면 reset 버튼을 눌러주세요.');
+				// 패스 가능 여부 확인
+				if (checkPass(turn)) {
+					// 패스 횟수 확인
+					if (isPass || passCount === 2) {
+						return endGame();
+					}
+					// 패스
+					getNextTurn();
+					isPass = true;
+					passCount++;
+					setConsole(`턴을 패스합니다. 이제 ${turn > 0 ? '흑돌' : '백돌'} 턴입니다.`);
+				} else {
+					setConsole('패스 불가, 돌을 놓을 수 있는 칸이 존재합니다.');
+				}
+			}
+			function setAI() {
+				const level = document.forms[0].level.value;
+				const mode = document.forms[0].mode.value;
+				if (mode === '2' && turn == 1) return;
+
+				let {recommend, max} = getRecommendPos(turn);
+
+				setRecommendPos();
+				if (recommend.length === 0) {
+					setConsole('돌을 놓을 수 있는 칸이 존재하지 않습니다. 2초 뒤 턴을 패스합니다.');
+					clearTimeout(AITimer);
+					AITimer = setTimeout(passFn, 2000);
+					return;
+				}
+
+				let res = AI(level);
+				if (!res) {
+					const random = Math.floor(Math.random() * recommend.length);
+					res = recommend[random];
+				}
+				const {x, y, reverses} = res;
+				setPos(x, y, turn, reverses);
+				getNextTurn(500 + (500 / level));
+			}
+			/**
+			 * AI
+			 * @param {number} level - 난이도
+			 * @return {Object} - {x, y, reverses}
+			 * x: x좌표
+			 * y: y좌표
+			 * reverses: 뒤집힐 돌의 좌표 배열
+			*/
+			function AI(level = 1) {
+				const tmpBoard = JSON.parse(JSON.stringify(board));
+				const {recommend, max} = getRecommendPos(turn, tmpBoard);
+
+				console.log('연산 중...');
+
+				// 후보군 생성
+				let candidates = [];
+				candidates = candidates.concat(recommend.map(rec => Object.assign(rec, {init: rec, board: tmpBoard, d: rec.reverses.length, l: 0, t: turn})));
+
+				// 결과 저장
+				let results = [];
+
+				let i = 0;
+				let best = -Infinity;
+				// 후보군이 없을 때까지 반복 또는 100000번 반복
+				while (i < 100000 && candidates.length > 0) {
+					/**
+					 * @type {Object}
+					 * @property {Object} init - 초기 위치
+					 * @property {number} x - x 좌표
+					 * @property {number} y - y 좌표
+					 * @property {Array} reverses - 뒤집을 돌 위치 배열
+					 * @property {Array} board - 보드판
+					 * @property {number} d - 점수
+					 * @property {number} l - 레벨
+					 * @property {number} t - 턴
+					 */
+					const {init, x, y, reverses, board, d, l, t} = candidates.shift();
+					// 후보군 연산
+					const {res, board: newBoard} = setSudoPos(x, y, t, board, reverses);
+					if (!res) continue;
+
+					// 다음 턴 후보군 생성
+					let {recommend, max} = getRecommendPos(-t, newBoard, true);
+					// 레벨 도달
+					if (l + 1 >= level && d >= best) {
+						results.push({x: init.x, y: init.y, reverses: init.reverses, d});
+						best = Math.max(best, d);
+						i++;
+						continue;
+					}
+					// 후보군이 없을 때
+					if (recommend.length === 0) {
+						// 패스 가정 후 후보군 생성
+						let {recommend, max} = getRecommendPos(t, newBoard, true);
+						// 후보군이 없을 때
+						if (recommend.length === 0) {
+							if (d >= best) {
+								results.push({x: init.x, y: init.y, reverses: init.reverses, d});
+								best = Math.max(best, d);
+							}
+							i++;
+							continue;
+						} else {
+							// 후보군 생성
+							candidates = candidates.concat(recommend.slice(0, 15 - l).map(rec => Object.assign(rec, {init, board: newBoard, d: d + rec.reverses.length, l: l + 1, t})));
+						}
+					} else {
+						// 후보군 생성
+						candidates = candidates.concat(recommend.slice(0, 15 - l).map(rec => Object.assign(rec, {init, board: newBoard, d: d - rec.reverses.length, l: l + 1, t: -t})));
+					}
+					i++;
+				}
+				results = results.filter((el) => el.d === best);
+				const random = Math.floor(Math.random() * results.length);
+				console.log('연산 완료!');
+				return results[random];
+			}
+			// 게임 종료 선언
+			function endGame() {
+				if (isEnd) return setConsole('게임이 종료되었습니다. 새로 시작하려면 reset 버튼을 눌러주세요.');
+				isEnd = true;
+				const res = board.reduce((acc, cur) => acc.concat(cur), []).reduce((acc, cur) => acc + cur, 0)
+				const text =  res > 0 ? '흑돌이 이겼습니다.' : res < 0 ? '백돌이 이겼습니다.' : '비겼습니다.';
+				setConsole(text);
+				alert(text);
+			}
+
+
+			// 초기설정
+			mkBoardDOM();
+			resetFn();
+		}
+
+		game();
+	</script>
+</body>
+</html>
